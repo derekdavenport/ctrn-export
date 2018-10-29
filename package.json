@@ -1,10 +1,10 @@
 {
   "name": "ctrn-export",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "ctrn-export",
   "main": "app.js",
   "author": {
-    "name": ""
+    "name": "Derek Davenport"
   },
   "devDependencies": {
     "@types/node": "^8.0.14"

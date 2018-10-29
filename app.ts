@@ -1,11 +1,13 @@
 ﻿import * as https from 'https';
 import * as fs from 'fs';
+import * as path from 'path';
 import * as querystring from 'querystring';
 import { URL } from 'url';
 import { parse, HTMLElement } from 'node-html-parser';
 
 const [hostname, OrgID, UserId, pass] = process.argv.slice(2);
 const baseURL = new URL('https://' + hostname + '/directory/');
+const noImageFilename = 'tn_b0539ee4ad44817af56d21786dd6b520_1362965845.jpg';
 
 const splitSize = 20 * 1024 * 1024; // bytes
 
@@ -24,22 +26,18 @@ async function main() {
 	try {
 		const directory = await loadDirectory();
 		const root = parse(directory);
+		let i = 0;
 		for (const userDiv of root.querySelectorAll('.group_user_div-tall') as HTMLElement[]) {
+			if (i++ < 4) continue;
 			const vcardLink = userDiv.querySelector('.vcard_image a') as HTMLElement;
-			const vcardURL = new URL(vcardLink.attributes['href'], baseURL);
-			//const personId = vcardURL.searchParams.get('mid');
 			const img = userDiv.querySelector('.newphotos_member') as HTMLElement;
-			const imgURLvalue = img.attributes['src'];
-			let imagePromise = null;
-			// ignore missing photos (this filename will be different for other directories)
-			if (!imgURLvalue.endsWith('tn_b0539ee4ad44817af56d21786dd6b520_1362965845.jpg')) {
-				imagePromise = get(new URL(imgURLvalue, baseURL));
-			}
-			// after both load, put image in card
-			vcardPromises.push(Promise.all([get(vcardURL), imagePromise])
-				.then(([vcard, image]) => patchVcard(vcard, image)));
+			const vcardURL = new URL(vcardLink.attributes['href'], baseURL);
+			const imageURL = new URL(img.attributes['src'], baseURL);
+			//const personId = vcardURL.searchParams.get('mid');
+			vcardPromises.push(makeVcard(vcardURL, imageURL));
+
 			// cut short while debugging
-			if (vcardPromises.length == 4)
+			if (vcardPromises.length == 1)
 				break;
 		}
 		// TODO: split by splitSize
@@ -55,6 +53,19 @@ async function main() {
 	}
 }
 
+async function makeVcard(vcardURL: URL, imageURL: URL) {
+	const hasImage = path.basename(imageURL.pathname) !== noImageFilename;
+	const [vcard, image] = await Promise.all([
+		get(vcardURL),
+		hasImage ? get(imageURL) : null
+	]);
+	return vcard.toString()
+		// replace work line with image or remove
+		.replace(/^ADR;TYPE=work:.*\s*/m, image ? ('PHOTO;ENCODING=b;TYPE=JPEG:' + image.toString('base64')).replace(/(^.{75}|(?!^).{74}(?=.))/g, '$1\r\n ') + '\r\n' : '')
+		// change birthdays to ISO format (birthdays without a year will become 2001)
+		.replace(/^BDAY:(.*)/m, (_, dateValue) => 'BDAY:' + new Date(dateValue).toISOString().substring(0,10));
+}
+
 async function get(url: URL) {
 	return new Promise<Buffer>(resolve => {
 		let buffers: Buffer[] = [];
@@ -64,23 +75,6 @@ async function get(url: URL) {
 		});
 		request.end();
 	});
-}
-
-function patchVcard(vcard: Buffer, image: Buffer | null): string {
-	const parts = vcard.toString().split('\r\n');
-	for (const i of parts.keys()) {
-		if (parts[i].startsWith('ADR;TYPE=work:')) {
-			if (image) {
-				parts[i] = 'PHOTO;ENCODING=BASE64;JPEG:' + image.toString('base64');
-			}
-			else {
-				parts.splice(i, 1);
-			}
-			break;
-		}
-
-	}
-	return parts.join('\r\n');
 }
 
 async function loadDirectory() {
