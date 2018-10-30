@@ -1,13 +1,14 @@
 {
   "name": "ctrn-export",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "ctrn-export",
   "main": "app.js",
   "author": {
     "name": "Derek Davenport"
   },
   "devDependencies": {
-    "@types/node": "^8.0.14"
+    "@types/node": "^8.0.14",
+    "typescript": "^3.1.4"
   },
   "dependencies": {
     "node-html-parser": "^1.1.10"
@@ -15,5 +16,5 @@
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w"
-   }
+  }
 }
