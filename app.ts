@@ -1,37 +1,29 @@
-﻿import * as https from 'https';
-import * as fs from 'fs';
+﻿import * as fs from 'fs';
+import * as https from 'https';
 import * as path from 'path';
 import * as querystring from 'querystring';
 import { URL } from 'url';
 import { parse, HTMLElement } from 'node-html-parser';
 
-const [hostname, OrgID, UserId, pass, noImageFilename, maxFileSizeMBvalue] = process.argv.slice(2);
-const baseURL = new URL('https://' + hostname + '/directory/');
-const maxFileSizeMB = parseInt(maxFileSizeMBvalue) || 15;
-const maxFileSize = maxFileSizeMB * 1024 * 1024;
+const [subdomain, noImageFilename, maxFileSizeMBvalue, limitValue] = process.argv.slice(2);
+const baseURL = new URL(`https://${subdomain}.ctrn.co/directory/`);
+const maxFileSize = (parseInt(maxFileSizeMBvalue) || 15) * 1024 * 1024;
+const limit = parseInt(limitValue) || 1000;
 const maxRetries = 5;
 
 main();
 
 async function main() {
-	// let cookies: string[];
-	// try {
-	// 	cookies = await login();
-	// }
-	// catch (error) {
-	// 	process.exit(1);
-	// }
-	const people = [];
 	const vcardPromises = [];
 	try {
-		const directory = await loadDirectory();
+		const orgID = await getOrgID(baseURL);
+		const directory = await getDirectory(orgID);
 		const root = parse(directory);
-		for (const userDiv of root.querySelectorAll('.group_user_div-tall') as HTMLElement[]) {
+		for (const userDiv of root.querySelectorAll('.group_user_div-short') as HTMLElement[]) {
 			const vcardLink = userDiv.querySelector('.vcard_image a') as HTMLElement;
 			const img = userDiv.querySelector('.newphotos_member') as HTMLElement;
 			const vcardURL = new URL(vcardLink.attributes['href'], baseURL);
 			const imageURL = new URL(img.attributes['src'], baseURL);
-			//const personId = vcardURL.searchParams.get('mid');
 			vcardPromises.push(makeVcard(vcardURL, imageURL));
 		}
 		const vcards = await Promise.all(vcardPromises);
@@ -40,7 +32,6 @@ async function main() {
 	}
 	catch (error) {
 		console.log(error);
-		process.exit(1);
 	}
 }
 
@@ -62,7 +53,6 @@ async function writeVcards(vcards: string[]) {
 					stream = fs.createWriteStream(fileName, { flags: 'w' });
 					writtenBytes = 0;
 				}
-				// Buffer.byteLength(str, 'utf8')
 				ok = stream.write(vcardBuffer);
 				writtenBytes += vcardBuffer.byteLength;
 			}
@@ -78,7 +68,7 @@ async function writeVcards(vcards: string[]) {
 }
 
 async function makeVcard(vcardURL: URL, imageURL: URL) {
-	const hasImage = path.basename(imageURL.pathname) !== noImageFilename;
+	const hasImage = !noImageFilename || path.basename(imageURL.pathname) !== noImageFilename;
 	const vcardPromise = get(vcardURL);
 	const imagePromise = hasImage ? get(imageURL) : null;
 	let vcard, image;
@@ -118,8 +108,6 @@ async function get(url: URL, retries = 0) {
 			response.on('end', () => resolve(Buffer.concat(buffers)));
 		});
 		request.on('error', async error => {
-			let r = request;
-			// console.error(`${url} : ${e.message}`);
 			if (retries < maxRetries) {
 				try {
 					resolve(await get(url, retries + 1));
@@ -134,22 +122,22 @@ async function get(url: URL, retries = 0) {
 	});
 }
 
-async function loadDirectory() {
+async function getDirectory(o: string) {
 	return new Promise<string>(resolve => {
 		const postData = querystring.stringify({
-			o: OrgID,
-			os: 1,
-			srctyp: 'mem',
-			di: 'all',
-			limit: 300,
-			q: '%%%',
-			sw: null,
-			pu: UserId,
+			o, // OrgID
+			//os: 1, // page
+			srctyp: 'mem', // member search
+			//di: 'all', // display info
+			limit,
+			//q: '%%%',
+			//sw: null,
+			//pu: UserId,
 		})
 		let buffers: Buffer[] = [];
 		const request = https.request({
-			hostname,
-			path: '/includes/async.php?q=%%%&todo=org_dir',
+			hostname: baseURL.hostname,
+			path: '/includes/async.php?todo=org_dir',
 			method: 'POST',
 			headers: {
 				//Cookie: querystring.stringify(cookies, '; '),
@@ -164,39 +152,10 @@ async function loadDirectory() {
 	});
 }
 
-async function login() {
-	return new Promise<string[]>((resolve, reject) => {
-		const postData = querystring.stringify({
-			user: 'orguserctrn',
-			pass,
-			keepLoggedInPk: 1,
-			user2: null,
-			pass2: null,
-		});
-
-		const options = {
-			hostname,
-			path: '/directory/index.php',
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/x-www-form-urlencoded',
-				'Content-Length': Buffer.byteLength(postData)
-			}
-		};
-
-		const request = https.request(options, response => {
-			if (response.statusCode === 302) {
-				const setCookies = response.headers["set-cookie"];
-				resolve(setCookies.map(setCookie => setCookie.split(';')[0]));
-			}
-			else {
-				reject(response.statusCode);
-			}
-		});
-		request.on('error', e => {
-			console.error(`problem with request: ${e.message}`);
-			reject(e);
-		});
-		request.end(postData);
-	});
+async function getOrgID(baseURL: URL) {
+	const indexPage = await get(baseURL);
+	const root = parse(indexPage.toString());
+	const orgIDinput = root.querySelector('#OrgID') as HTMLElement;
+	const orgID = orgIDinput.attributes['value'];
+	return orgID;
 }
