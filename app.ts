@@ -126,13 +126,8 @@ async function getDirectory(o: string) {
 	return new Promise<string>(resolve => {
 		const postData = querystring.stringify({
 			o, // OrgID
-			//os: 1, // page
 			srctyp: 'mem', // member search
-			//di: 'all', // display info
 			limit,
-			//q: '%%%',
-			//sw: null,
-			//pu: UserId,
 		})
 		let buffers: Buffer[] = [];
 		const request = https.request({
@@ -140,7 +135,6 @@ async function getDirectory(o: string) {
 			path: '/includes/async.php?todo=org_dir',
 			method: 'POST',
 			headers: {
-				//Cookie: querystring.stringify(cookies, '; '),
 				'Content-Type': 'application/x-www-form-urlencoded',
 				'Content-Length': Buffer.byteLength(postData),
 			},
