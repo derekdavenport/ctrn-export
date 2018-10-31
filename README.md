@@ -1,8 +1,8 @@
-﻿## ctrn-export
+﻿# ctrn-export
 
 Export a CTRN directory to vcards
 
-# Parameters
+## Parameters
 
 1. subdomain  
 Required. This is the part before `ctrn.co`. http://***subdomain***.ctrn.co
@@ -13,8 +13,9 @@ Optional. Defaults to 15 MB. Files will be split to prevent any from exceeding t
 4. limit  
 Optional. Defaults to 1000. Maximum number of people to download.
 
-# Google Contacts
+## Google Contacts
 
 [import instructions](https://support.google.com/contacts/answer/1069522)
 
-Note: Google Contacts import requires 3rd party cookies to be enabled. [cookie instructions](https://support.google.com/chrome/answer/95647)
+Note: Google Contacts import requires 3rd party cookies to be enabled.  
+[cookie instructions](https://support.google.com/chrome/answer/95647)
